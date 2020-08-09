@@ -1,6 +1,7 @@
 import java.util.AbstractSequentialList;
 import java.util.ListIterator;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 
 public class OwnLinkedList<E> extends AbstractSequentialList {
 
@@ -10,7 +11,7 @@ public class OwnLinkedList<E> extends AbstractSequentialList {
     private OwnListIterator iterator;
 
     @Override
-    public ListIterator listIterator(int index) {
+    public ListIterator<E> listIterator(int index) {
         return new OwnListIterator(index);
     }
 
@@ -24,6 +25,7 @@ public class OwnLinkedList<E> extends AbstractSequentialList {
         private int cursor; //index следующего элемента который вернет метод next()
         private Node<E> nextNode;
         private Node<E> prevNode;
+        private Node<E> lastReturned;
 
         //инициализируем итератор таким образом чтобы следующим был выдан элемент с заданным индексом
         public OwnListIterator(int index) {
@@ -66,14 +68,15 @@ public class OwnLinkedList<E> extends AbstractSequentialList {
                 return;
             }
 
-            for(int i = 0; i < index; i++) {
-                if(index == 0) {
+            for(int i = 0; i <= index; i++) {
+                if(i == 0) {
                     nextNode = firstNode;
                     prevNode = null;
                     continue;
                 }
+
                 nextNode = hasNext() ? nextNode.next : null;
-                prevNode = (nextNode.prev == null) ? null : nextNode.prev;
+                prevNode = nextNode.prev;
             }
         }
 
@@ -124,7 +127,7 @@ public class OwnLinkedList<E> extends AbstractSequentialList {
 
         @Override
         public boolean hasNext() {
-            return nextNode.next != null;
+            return nextNode != null;
         }
 
         @Override
@@ -133,6 +136,7 @@ public class OwnLinkedList<E> extends AbstractSequentialList {
                 prevNode = nextNode;
                 nextNode = nextNode.next;
                 cursor++;
+                lastReturned = prevNode;
                 return prevNode.element;
             } else {
                 throw new NoSuchElementException();
@@ -150,6 +154,7 @@ public class OwnLinkedList<E> extends AbstractSequentialList {
                 nextNode = prevNode;
                 prevNode = prevNode.prev;
                 cursor--;
+                lastReturned = prevNode;
                 return prevNode.element;
             } else {
                 throw new NoSuchElementException();
@@ -158,22 +163,63 @@ public class OwnLinkedList<E> extends AbstractSequentialList {
 
         @Override
         public int nextIndex() {
-            return 0;
+            return cursor;
         }
 
         @Override
         public int previousIndex() {
+            if(hasPrevious())
+                return cursor - 1;
             return 0;
         }
 
         @Override
         public void remove() {
+            if(lastReturned == null)
+                throw new IllegalStateException("No returned node found");
+
+            //link leftovers
+            Optional.ofNullable(lastReturned.prev).ifPresent(prev -> prev.next = lastReturned.next);
+            Optional.ofNullable(lastReturned.next).ifPresent(next -> next.prev = lastReturned.prev);
+
+            //change references to first and last node if exists
+            if(firstNode == lastReturned) {
+                firstNode = lastReturned.next;
+            }
+            if(lastNode == lastReturned) {
+                lastNode = lastReturned.prev;
+            }
+
+            //remove references inside removed node
+            lastReturned.prev = null;
+            lastReturned.next = null;
+
+            size--;
 
         }
 
         @Override
         public void set(E o) {
+            if(lastReturned == null)
+                throw new IllegalStateException("No returned node found");
 
+            Node newNode = new Node(o);
+
+            //change references to new node
+            Optional.ofNullable(lastReturned.prev).ifPresent(prev -> prev.next = newNode);
+            Optional.ofNullable(lastReturned.next).ifPresent(next -> next.prev = newNode);
+
+            //change references to first and last node if exists
+            if(firstNode == lastReturned) {
+                firstNode = newNode;
+            }
+            if(lastNode == lastReturned) {
+                lastNode = newNode;
+            }
+
+            //make lastReturned without elements
+            lastReturned.prev = null;
+            lastReturned.next = null;
         }
 
 
@@ -186,6 +232,13 @@ public class OwnLinkedList<E> extends AbstractSequentialList {
 
         Node(E element) {
             this.element = element;
+        }
+
+        @Override
+        public String toString() {
+            return "Node{" +
+                    "element=" + element +
+                    '}';
         }
     }
 }
